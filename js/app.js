@@ -141,6 +141,20 @@ function seedProducts(){
   ].map(p => ({ estado:'publicado', ...p })); // catálogo de partida: ya publicado, listo para demostrar Inventario
 }
 
+/* Datos de la empresa que emite las órdenes de compra a los proveedores — se usan solo
+   en el cuerpo del correo al proveedor (sección "Datos de facturación"). Son placeholder:
+   el equipo de desarrollo debe reemplazarlos por los datos legales reales de Kupos, o
+   traerlos desde una configuración editable en vez de dejarlos fijos en el código. */
+const EMPRESA = {
+  nombrePlataforma: 'Kupos Autopartes',
+  razonSocial: '[Razón social de la empresa]',
+  rut: '[RUT de la empresa]',
+  giro: '[Giro comercial]',
+  direccion: '[Dirección de la empresa]',
+  correoDTE: '[correo-facturas@kupos.cl]',
+  condicionesPago: '[A definir]',
+};
+
 let PRODUCTS = LS.get('ap_products', null) || seedProducts();
 let PROVIDERS = LS.get('ap_providers', null) || seedProviders();
 let CART = LS.get('ap_cart', []);
@@ -631,24 +645,31 @@ function submitSolicitud(){
   // recibe nada todavía.
   queueEmail({
     to: correo, tipo:'cliente', accion:'aprobar', folio,
-    asunto: `Aprueba tu compra ${folio} — Autopartes Kupos`,
+    asunto: `Aprueba tu compra ${folio} — ${EMPRESA.nombrePlataforma}`,
     cuerpo: [
-      `Hola ${nombre},`,
-      `Recibimos tu compra ${folio} por un total de ${money(req.total)}. Antes de coordinarla con el proveedor, necesitamos que la apruebes.`,
+      `Hola, ${nombre}:`,
+      `Hemos recibido tu solicitud de compra en nuestro portal. Para poder coordinar el despacho con el proveedor, necesitamos tu aprobación final de los siguientes detalles:`,
       ``,
-      `Detalle:`,
-      ...items.map(i=>`· ${i.cantidad} × ${i.marca} ${i.modelo} — ${money(i.precio*i.cantidad)}`),
+      `🛒 Resumen de la Compra (N° ${folio})`,
+      ...items.map(i=>`- Producto: ${i.cantidad} × ${i.marca} ${i.modelo} — ${money(i.precio*i.cantidad)}`),
+      `- Monto Total: ${money(req.total)}`,
+      `- Forma de pago: El monto total se descontará de tu próxima recaudación.`,
       ``,
-      `Despacho a: ${direccionCompleta}`,
-      `Responsable de recepción: ${responsable}`,
-      cliente.comentario? `Comentario: ${cliente.comentario}` : '',
+      `🚚 Datos de Despacho`,
+      `- Dirección: ${direccionCompleta}`,
+      `- Responsable de recepción: ${responsable}`,
+      ...(cliente.comentario? [`- Comentario: ${cliente.comentario}`] : []),
       ``,
-      `Para aprobar, haz clic en el siguiente enlace:`,
-      `https://autopartes.kupos.cl/aprobar/${folio}`,
+      `✅ Confirma tu pedido`,
+      `Para autorizar esta compra y enviar la orden al proveedor, por favor haz clic en el siguiente enlace:`,
+      `👉 Aprobar Compra ${folio}: https://autopartes.kupos.cl/aprobar/${folio}`,
       `(enlace de ejemplo — en este prototipo se simula con el botón "Simular aprobación")`,
       ``,
-      `Una vez aprobada, coordinaremos el despacho con el proveedor y el monto se descontará en tu próxima recaudación.`,
-    ].filter(Boolean).join('\n'),
+      `Si no reconoces esta compra o necesitas modificarla, por favor contáctanos antes de aprobar.`,
+      ``,
+      `Saludos cordiales,`,
+      `El equipo de ${EMPRESA.nombrePlataforma}`,
+    ].join('\n'),
   });
   saveEmails();
 
@@ -698,22 +719,50 @@ function approveSolicitud(folio){
   // solo marca, modelo y la descripción cargada en el catálogo (para trackeo).
   const porProveedor = {};
   req.items.forEach(i=>{ if(i.proveedorEmail){ (porProveedor[i.proveedorEmail] ||= {proveedor:i.proveedor, items:[]}).items.push(i); } });
+  // Orden de compra al proveedor: nunca lleva precios (el costo que maneja el
+  // proveedor es distinto al que paga el cliente) — solo marca, modelo, descripción
+  // y cantidad, más los datos de despacho y de facturación.
+  const fechaEmision = new Date().toLocaleDateString('es-CL', {day:'2-digit', month:'2-digit', year:'numeric'});
   Object.entries(porProveedor).forEach(([email, grupo])=>{
     queueEmail({
       to: email, tipo:'proveedor', folio,
-      asunto: `Nuevo pedido aprobado — folio ${folio}`,
+      asunto: `Orden de Compra ${folio} — ${EMPRESA.nombrePlataforma}`,
       cuerpo: [
-        `Estimado ${grupo.proveedor},`,
-        `El cliente aprobó un pedido que incluye tus productos.`,
+        `Estimado equipo de ${grupo.proveedor},`,
+        `Le notificamos que se ha confirmado un nuevo pedido a través de nuestro portal. Este correo constituye la Orden de Compra oficial para los productos detallados a continuación. Por favor, proceda con la preparación y el despacho.`,
         ``,
-        `Ítems solicitados:`,
-        ...grupo.items.map(i=>`· ${i.cantidad} × ${i.marca} ${i.modelo}${i.descripcion? ' — '+i.descripcion : ''}`),
+        `📄 Datos de la Orden de Compra`,
+        `- N° de Orden de Compra: ${folio}`,
+        `- Fecha de emisión: ${fechaEmision}`,
+        `- Condiciones de pago: ${EMPRESA.condicionesPago}`,
         ``,
-        `Datos de despacho:`,
-        `Cliente: ${req.cliente.nombre}${req.cliente.empresa? ' ('+req.cliente.empresa+')' : ''}`,
-        `Dirección: ${direccionCompleta}`,
-        `Responsable de recepción: ${responsable}`,
-        `Contacto: ${req.cliente.correo} · ${req.cliente.telefono}`,
+        `📦 Detalle de los Productos`,
+        ...grupo.items.flatMap(i=>[
+          `- Ítem: ${i.marca} ${i.modelo}${i.descripcion? ' — '+i.descripcion : ''}`,
+          `  Cantidad: ${i.cantidad} unidad${i.cantidad===1?'':'es'}`,
+        ]),
+        ``,
+        `🚚 Información de Despacho`,
+        `- Cliente / Empresa: ${req.cliente.nombre}${req.cliente.empresa? ' ('+req.cliente.empresa+')' : ''}`,
+        `- Dirección de Entrega: ${direccionCompleta}`,
+        `- Responsable de Recepción: ${responsable}`,
+        `- Teléfono de Contacto: ${req.cliente.telefono}`,
+        `- Correo Electrónico: ${req.cliente.correo}`,
+        ``,
+        `🏢 Datos de Facturación`,
+        `- Razón Social: ${EMPRESA.razonSocial}`,
+        `- RUT: ${EMPRESA.rut}`,
+        `- Giro: ${EMPRESA.giro}`,
+        `- Dirección: ${EMPRESA.direccion}`,
+        `- Correo DTE: ${EMPRESA.correoDTE}`,
+        ``,
+        `⚙️ Instrucciones Adicionales`,
+        `Por favor, confirme la recepción de este pedido respondiendo a este correo e indíquenos la fecha estimada de entrega. Una vez despachado, le solicitamos enviar el comprobante de entrega y la factura electrónica a nuestro correo de DTE.`,
+        ``,
+        `Quedamos a su disposición ante cualquier duda o comentario.`,
+        ``,
+        `Atentamente,`,
+        `Equipo ${EMPRESA.nombrePlataforma}`,
       ].join('\n'),
     });
   });
