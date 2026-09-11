@@ -214,7 +214,7 @@ function diffFields(before, after, fields){
 
 const ITEM_DIFF_FIELDS = [
   ['estado','Publicación', v=>v==='publicado'?'Publicado':'Pendiente de validación'],
-  ['marca','Marca'], ['modelo','Modelo'], ['proveedor','Proveedor'],
+  ['marca','Marca'], ['modelo','Modelo'], ['sku','SKU'], ['proveedor','Proveedor'],
   ['precio','Precio', v=>money(v)],
   ['descuento','Descuento', v=>v>0? v+'%' : '—'],
   ['stock','Stock'],
@@ -641,7 +641,7 @@ function submitSolicitud(){
   };
   const items = CART.map(c=>{
     const p=PRODUCTS.find(p=>p.id===c.id);
-    return {id:p.id, marca:p.marca, modelo:p.modelo, descripcion:p.descripcion||'', cantidad:c.qty, precio:finalPrice(p), proveedor:p.proveedor||'', proveedorEmail:p.proveedorEmail||''};
+    return {id:p.id, marca:p.marca, modelo:p.modelo, sku:p.sku||'', descripcion:p.descripcion||'', cantidad:c.qty, precio:finalPrice(p), proveedor:p.proveedor||'', proveedorEmail:p.proveedorEmail||''};
   });
   // Queda "esperando-aprobacion": el proveedor y el backoffice recién se enteran cuando
   // el cliente aprueba desde el enlace del correo (simulado más abajo).
@@ -661,7 +661,7 @@ function submitSolicitud(){
       `Hemos recibido tu solicitud de compra en nuestro portal. Para poder coordinar el despacho con el proveedor, necesitamos tu aprobación final de los siguientes detalles:`,
       ``,
       `🛒 Resumen de la Compra (N° ${folio})`,
-      ...items.map(i=>`- Producto: ${i.cantidad} × ${i.marca} ${i.modelo} — ${money(i.precio*i.cantidad)}`),
+      ...items.map(i=>`- Producto: ${i.cantidad} × ${i.marca} ${i.modelo}${i.sku? ` (SKU: ${i.sku})` : ''} — ${money(i.precio*i.cantidad)}`),
       `- Monto Total: ${money(req.total)}`,
       `- Forma de pago: El monto total se descontará de tu próxima recaudación.`,
       ``,
@@ -749,6 +749,7 @@ function approveSolicitud(folio){
         `📦 Detalle de los Productos`,
         ...grupo.items.flatMap(i=>[
           `- Ítem: ${i.marca} ${i.modelo}`,
+          ...(i.sku? [`  SKU: ${i.sku}`] : []),
           ...(i.descripcion? [`  Descripción: ${i.descripcion}`] : []),
           `  Cantidad: ${i.cantidad} unidad${i.cantidad===1?'':'es'}`,
         ]),
@@ -826,8 +827,8 @@ function defaultSpecs(cat){
 }
 function emptyDraft(cat){
   return cat==='neumatico'
-    ? {id:null, cat:'neumatico', estado:'pendiente', marca:'', modelo:'', proveedorId:'', proveedor:'', proveedorEmail:'', descripcion:'', medida:'', posicion:'Dirección', precio:'', descuento:'', stock:'', destacado:false, reco:'', imagen:'', marcaLogo:'', especificaciones:defaultSpecs('neumatico')}
-    : {id:null, cat:'lubricante', estado:'pendiente', marca:'', modelo:'', proveedorId:'', proveedor:'', proveedorEmail:'', descripcion:'', presentacion:'', viscosidad:'', tipo:'Mineral', precio:'', descuento:'', stock:'', destacado:false, reco:'', imagen:'', marcaLogo:'', especificaciones:defaultSpecs('lubricante')};
+    ? {id:null, cat:'neumatico', estado:'pendiente', marca:'', modelo:'', sku:'', proveedorId:'', proveedor:'', proveedorEmail:'', descripcion:'', medida:'', posicion:'Dirección', precio:'', descuento:'', stock:'', destacado:false, reco:'', imagen:'', marcaLogo:'', especificaciones:defaultSpecs('neumatico')}
+    : {id:null, cat:'lubricante', estado:'pendiente', marca:'', modelo:'', sku:'', proveedorId:'', proveedor:'', proveedorEmail:'', descripcion:'', presentacion:'', viscosidad:'', tipo:'Mineral', precio:'', descuento:'', stock:'', destacado:false, reco:'', imagen:'', marcaLogo:'', especificaciones:defaultSpecs('lubricante')};
 }
 let draft = emptyDraft('neumatico');
 
@@ -854,11 +855,11 @@ const NEUMATICO_SPEC_COLUMNS = [
   'spec_carga_max_simple','spec_carga_max_dual','spec_presion_max','spec_profundidad_banda',
   'spec_ancho_seccion','spec_diametro_exterior','spec_ancho_llanta','spec_aro_recomendado','spec_aro_permitido',
 ];
-const BULK_TEMPLATE_HEADERS = ['categoria','marca','modelo','precio','stock','descuento_pct','medida','posicion','presentacion','viscosidad','tipo','descripcion','destacado','etiqueta_destacada', ...NEUMATICO_SPEC_COLUMNS];
+const BULK_TEMPLATE_HEADERS = ['categoria','marca','modelo','sku','precio','stock','descuento_pct','medida','posicion','presentacion','viscosidad','tipo','descripcion','destacado','etiqueta_destacada', ...NEUMATICO_SPEC_COLUMNS];
 const BULK_TEMPLATE_EXAMPLES = [
-  ['neumatico','Bridgestone','R269','320288','18','0','295/80R22.5','Dirección / Tracción','','','','295/80R22.5 152/149L R269 Bridgestone 16PR Dir-On BLK JPN','si','Recomendado dirección',
+  ['neumatico','Bridgestone','R269','BRIDG-R269-29580','320288','18','0','295/80R22.5','Dirección / Tracción','','','','295/80R22.5 152/149L R269 Bridgestone 16PR Dir-On BLK JPN','si','Recomendado dirección',
     'R269','Direccional (eje delantero)','152/149 L','16 PR','TL (Sin cámara)','3.550 kg','3.250 kg','830 kPa (120 psi)','16 mm','298 mm','1052 mm','8.25 pulgadas','8.25','7.50 - 9.00'],
-  ['lubricante','Shell','Rimula R6','210000','16','0','','','20 L','5W30','Sintético','20L 5W30 Sintético Rimula R6 Shell Diesel EuroV/VI','no','',
+  ['lubricante','Shell','Rimula R6','SHELL-RIM-R6-20L','210000','16','0','','','20 L','5W30','Sintético','20L 5W30 Sintético Rimula R6 Shell Diesel EuroV/VI','no','',
     '','','','','','','','','','','','',''],
 ];
 let bulk = { proveedorId:'', rows:null, errors:[], unmatchedHeaders:[], fileName:'' };
@@ -867,6 +868,7 @@ const BULK_HEADER_ALIASES = {
   categoria:'categoria', category:'categoria', cat:'categoria',
   marca:'marca', brand:'marca',
   modelo:'modelo', model:'modelo',
+  sku:'sku', codigo:'sku', codigosku:'sku', skucode:'sku',
   precio:'precio', price:'precio', preciodeventa:'precio', preciodeventaclp:'precio',
   stock:'stock', cantidad:'stock', qty:'stock',
   descuentopct:'descuento', descuento:'descuento', descuentopercent:'descuento', discount:'descuento',
@@ -962,7 +964,7 @@ function rowsFromWorkbookData(arrayBuffer){
     const descuento = Math.min(95, Math.max(0, parseFloat(raw.descuento)||0));
     const destacado = /^(si|sí|true|1|x|yes)$/i.test((raw.destacado||'').trim());
     const item = {
-      cat, marca:raw.marca, modelo:raw.modelo, precio, stock, descuento,
+      cat, marca:raw.marca, modelo:raw.modelo, sku: raw.sku||'', precio, stock, descuento,
       descripcion: raw.descripcion||'', reco: raw.reco||'', destacado,
     };
     if(cat==='neumatico'){
@@ -1091,8 +1093,8 @@ function renderBulkPreview(){
     <div class="g-label" style="margin-top:2px">Vista previa (${rows.length} ítem${rows.length===1?'':'s'} listo${rows.length===1?'':'s'} para importar)</div>
     <div class="table-wrap" style="max-height:220px;overflow-y:auto">
       <table>
-        <thead><tr><th>Marca</th><th>Modelo</th><th>Categoría</th><th>Precio</th><th>Stock</th></tr></thead>
-        <tbody>${rows.length? rows.map(({item})=>`<tr><td>${item.marca}</td><td>${item.modelo}</td><td>${item.cat==='neumatico'?'Neumático':'Lubricante'}</td><td class="cell-num">${money(item.precio)}</td><td class="cell-num">${item.stock}</td></tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:18px">Ninguna fila válida para importar.</td></tr>`}</tbody>
+        <thead><tr><th>Marca</th><th>Modelo</th><th>SKU</th><th>Categoría</th><th>Precio</th><th>Stock</th></tr></thead>
+        <tbody>${rows.length? rows.map(({item})=>`<tr><td>${item.marca}</td><td>${item.modelo}</td><td>${item.sku||'—'}</td><td>${item.cat==='neumatico'?'Neumático':'Lubricante'}</td><td class="cell-num">${money(item.precio)}</td><td class="cell-num">${item.stock}</td></tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:18px">Ninguna fila válida para importar.</td></tr>`}</tbody>
       </table>
     </div>
     ${rows.length && rows[0].item.cat==='neumatico' ? `<p class="hint">Ficha técnica detectada en "${rows[0].item.marca} ${rows[0].item.modelo}": ${specsFilled} de ${firstSpecs.length} campos con valor.</p>` : ''}
@@ -1180,7 +1182,7 @@ function renderBackofficeCatalogo(){
     return `
     <tr>
       <td><input type="checkbox" class="row-check" data-check="${p.id}" ${!pend?'disabled':''} ${bo.selectedIds.has(p.id)?'checked':''}></td>
-      <td><div class="item-cell"><div class="thumb-cell">${p.imagen? `<img src="${p.imagen}" alt="">` : ic(p.cat==='neumatico'?'tire':'drop',15)}</div><div><b>${p.marca}${p.destacado?` ${ic('star',11)}`:''}</b><div class="hint">${p.modelo}</div></div></div></td>
+      <td><div class="item-cell"><div class="thumb-cell">${p.imagen? `<img src="${p.imagen}" alt="">` : ic(p.cat==='neumatico'?'tire':'drop',15)}</div><div><b>${p.marca}${p.destacado?` ${ic('star',11)}`:''}</b><div class="hint">${p.modelo}${p.sku? ` · SKU ${p.sku}` : ''}</div></div></div></td>
       <td>${p.cat==='neumatico'?'Neumático':'Lubricante'}</td>
       <td>${p.proveedor? `${p.proveedor}${p.proveedorEmail? `<div class="hint">${p.proveedorEmail}</div>`:''}` : `<span class="hint">Sin definir</span>`}</td>
       <td>${p.cat==='neumatico' ? p.medida+' · '+p.posicion : p.presentacion+' · '+p.viscosidad+' · '+p.tipo}</td>
@@ -1248,6 +1250,11 @@ function productFormHTML(){
       <div class="field-row">
         <div class="field"><label>Marca</label><input id="dMarca" value="${draft.marca}" placeholder="Ej: Bridgestone"></div>
         <div class="field"><label>Modelo</label><input id="dModelo" value="${draft.modelo}" placeholder="Ej: R269"></div>
+      </div>
+      <div class="field">
+        <label>SKU</label>
+        <input id="dSku" value="${draft.sku||''}" placeholder="Ej: BRIDG-R269-29580">
+        <p class="hint" style="margin-top:2px">Código interno del ítem. Se incluye en los correos de solicitud y de orden de compra al proveedor.</p>
       </div>
       <div class="field">
         <label>Proveedor</label>
@@ -1398,7 +1405,7 @@ function wireProductForm(){
       // ítem ya estaba Publicado, guardar cambios lo baja de Inventario hasta
       // que alguien lo confirme de nuevo desde el catálogo.
       estado: 'pendiente',
-      cat: draft.cat, marca, modelo, precio, descuento, stock,
+      cat: draft.cat, marca, modelo, sku: document.getElementById('dSku').value.trim(), precio, descuento, stock,
       proveedorId: proveedorId || '',
       proveedor: proveedorSel? proveedorSel.nombre : '',
       proveedorEmail: proveedorSel? proveedorSel.email : '',
