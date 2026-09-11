@@ -141,17 +141,17 @@ function seedProducts(){
   ].map(p => ({ estado:'publicado', ...p })); // catálogo de partida: ya publicado, listo para demostrar Inventario
 }
 
-/* Datos de la empresa que emite las órdenes de compra a los proveedores — se usan solo
-   en el cuerpo del correo al proveedor (sección "Datos de facturación"). Son placeholder:
-   el equipo de desarrollo debe reemplazarlos por los datos legales reales de Kupos, o
-   traerlos desde una configuración editable en vez de dejarlos fijos en el código. */
+/* Datos de la empresa que emite las órdenes de compra a los proveedores — se usan en el
+   cuerpo del correo al proveedor (sección "Datos de facturación") y como destino de copia
+   para que la confirmación del pedido llegue también a contabilidad. En el prototipo están
+   fijos acá; el equipo de desarrollo debe traerlos desde una configuración editable. */
 const EMPRESA = {
   nombrePlataforma: 'Kupos Autopartes',
-  razonSocial: '[Razón social de la empresa]',
-  rut: '[RUT de la empresa]',
-  giro: '[Giro comercial]',
-  direccion: '[Dirección de la empresa]',
-  correoDTE: '[correo-facturas@kupos.cl]',
+  razonSocial: 'PASAJEBUS SPA',
+  rut: '76.335.837-2',
+  giro: 'Serv. Computacionales - Desarrollo de Software, Servicios de Internet y Exportación',
+  direccion: 'Andrés Bello 2233, Of. 1001, Providencia',
+  correoDTE: 'contabilidad@pasajebus.com',
   condicionesPago: '[A definir]',
 };
 
@@ -596,8 +596,8 @@ function openSolicitudModal(){
    en EMAILS para que el backoffice (pestaña Correos) pueda mostrar qué se habría enviado.
    `accion:'aprobar'` marca el correo de aprobación al cliente para poder simular el clic
    en su enlace desde la pestaña Correos. */
-function queueEmail({to, tipo, asunto, cuerpo, folio, accion}){
-  EMAILS.unshift({ id:'em'+Date.now()+Math.random().toString(16).slice(2,6), folio, tipo, accion:accion||'', to, asunto, cuerpo, fecha:new Date().toISOString() });
+function queueEmail({to, cc, tipo, asunto, cuerpo, folio, accion}){
+  EMAILS.unshift({ id:'em'+Date.now()+Math.random().toString(16).slice(2,6), folio, tipo, accion:accion||'', to, cc:cc||'', asunto, cuerpo, fecha:new Date().toISOString() });
 }
 
 function direccionCompletaDe(cliente){
@@ -725,7 +725,7 @@ function approveSolicitud(folio){
   const fechaEmision = new Date().toLocaleDateString('es-CL', {day:'2-digit', month:'2-digit', year:'numeric'});
   Object.entries(porProveedor).forEach(([email, grupo])=>{
     queueEmail({
-      to: email, tipo:'proveedor', folio,
+      to: email, cc: EMPRESA.correoDTE, tipo:'proveedor', folio,
       asunto: `Orden de Compra ${folio} — ${EMPRESA.nombrePlataforma}`,
       cuerpo: [
         `Estimado equipo de ${grupo.proveedor},`,
@@ -757,7 +757,7 @@ function approveSolicitud(folio){
         `- Correo DTE: ${EMPRESA.correoDTE}`,
         ``,
         `⚙️ Instrucciones Adicionales`,
-        `Por favor, confirme la recepción de este pedido respondiendo a este correo e indíquenos la fecha estimada de entrega. Una vez despachado, le solicitamos enviar el comprobante de entrega y la factura electrónica a nuestro correo de DTE.`,
+        `Por favor, confirme la recepción de este pedido respondiendo a este correo (con copia a ${EMPRESA.correoDTE}) e indíquenos la fecha estimada de entrega. Una vez despachado, le solicitamos enviar el comprobante de entrega y la factura electrónica a nuestro correo de DTE.`,
         ``,
         `Quedamos a su disposición ante cualquier duda o comentario.`,
         ``,
@@ -1617,12 +1617,13 @@ function renderBackofficeCorreos(){
       <td class="cell-num">${e.folio}</td>
       <td>${new Date(e.fecha).toLocaleString('es-CL')}</td>
       <td>${tipoPill(e.tipo)}</td>
-      <td>${e.to}</td>
+      <td>${e.to}${e.cc? `<div class="hint">Cc: ${e.cc}</div>` : ''}</td>
       <td>${e.asunto}</td>
     </tr>
     ${bo.selectedEmail===e.id ? `
     <tr><td colspan="5" style="padding:0;border-bottom:1px solid var(--border)">
       <div class="detail-panel show">
+        ${e.cc? `<div class="g-label">Con copia a</div><div style="margin-bottom:10px">${e.cc}</div>` : ''}
         <div class="g-label">Cuerpo del correo (simulado)</div>
         <pre style="white-space:pre-wrap;font-family:var(--font-mono);font-size:12.5px;margin:8px 0 0;line-height:1.6">${e.cuerpo}</pre>
         ${renderApprovalAction(e)}
