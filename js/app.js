@@ -143,17 +143,21 @@ function seedProducts(){
 
 /* Datos de la empresa que emite las órdenes de compra a los proveedores — se usan en el
    cuerpo del correo al proveedor (sección "Datos de facturación") y como destino de copia
-   para que la confirmación del pedido llegue también a contabilidad. En el prototipo están
-   fijos acá; el equipo de desarrollo debe traerlos desde una configuración editable. */
-const EMPRESA = {
-  nombrePlataforma: 'Kupos Autopartes',
-  razonSocial: 'PASAJEBUS SPA',
-  rut: '76.335.837-2',
-  giro: 'Serv. Computacionales - Desarrollo de Software, Servicios de Internet y Exportación',
-  direccion: 'Andrés Bello 2233, Of. 1001, Providencia',
-  correoDTE: 'contabilidad@pasajebus.com',
-  condicionesPago: '[A definir]',
-};
+   para que la confirmación del pedido llegue también a contabilidad. Editable desde
+   Backoffice → Datos de facturación (no hardcodeado) y persistido en localStorage, igual
+   que el resto de los datos del prototipo. En la versión real debería vivir en una
+   configuración del backend, no en el navegador de cada usuario. */
+function seedEmpresa(){
+  return {
+    nombrePlataforma: 'Kupos Autopartes',
+    razonSocial: 'PASAJEBUS SPA',
+    rut: '76.335.837-2',
+    giro: 'Serv. Computacionales - Desarrollo de Software, Servicios de Internet y Exportación',
+    direccion: 'Andrés Bello 2233, Of. 1001, Providencia',
+    correoDTE: 'contabilidad@pasajebus.com',
+    condicionesPago: '[A definir]',
+  };
+}
 
 let PRODUCTS = LS.get('ap_products', null) || seedProducts();
 let PROVIDERS = LS.get('ap_providers', null) || seedProviders();
@@ -161,12 +165,14 @@ let CART = LS.get('ap_cart', []);
 let REQUESTS = LS.get('ap_requests', []);
 let EMAILS = LS.get('ap_emails', []);
 let HISTORY = LS.get('ap_history', []);
+let EMPRESA = LS.get('ap_empresa', null) || seedEmpresa();
 function saveProducts(){ LS.set('ap_products', PRODUCTS); }
 function saveProviders(){ LS.set('ap_providers', PROVIDERS); }
 function saveCart(){ LS.set('ap_cart', CART); }
 function saveRequests(){ LS.set('ap_requests', REQUESTS); }
 function saveEmails(){ LS.set('ap_emails', EMAILS); }
 function saveHistory(){ LS.set('ap_history', HISTORY); }
+function saveEmpresa(){ LS.set('ap_empresa', EMPRESA); }
 
 /* ================= Historial de cambios (bitácora de Backoffice) ================= */
 /* Quién realiza la acción: en el mockup no hay login real, así que se simula con un
@@ -175,7 +181,7 @@ function saveHistory(){ LS.set('ap_history', HISTORY); }
 let backofficeActor = LS.get('ap_actor', '');
 function saveActor(){ LS.set('ap_actor', backofficeActor); }
 
-const HIST_ENTIDAD_LABELS = { item:'Catálogo', proveedor:'Proveedor', solicitud:'Solicitud' };
+const HIST_ENTIDAD_LABELS = { item:'Catálogo', proveedor:'Proveedor', solicitud:'Solicitud', empresa:'Datos de facturación' };
 const HIST_ACCION_LABELS = {
   crear:'Creó', editar:'Editó', publicar:'Publicó', rechazar:'Rechazó', eliminar:'Eliminó',
   confirmar:'Confirmó', 'aprobacion-cliente':'Aprobación de cliente (simulada)',
@@ -218,6 +224,10 @@ const ITEM_DIFF_FIELDS = [
   ['destacado','Destacado', v=>v? 'Sí':'No'],
 ];
 const PROVIDER_DIFF_FIELDS = [ ['nombre','Nombre'], ['email','Correo'], ['telefono','Teléfono'] ];
+const EMPRESA_DIFF_FIELDS = [
+  ['nombrePlataforma','Nombre de la plataforma'], ['razonSocial','Razón Social'], ['rut','RUT'],
+  ['giro','Giro'], ['direccion','Dirección'], ['correoDTE','Correo DTE'], ['condicionesPago','Condiciones de pago'],
+];
 
 /* ================= App state ================= */
 let nav = { section:'autopartes-inventario', autopartesOpen:true, kupospayOpen:false };
@@ -738,7 +748,8 @@ function approveSolicitud(folio){
         ``,
         `📦 Detalle de los Productos`,
         ...grupo.items.flatMap(i=>[
-          `- Ítem: ${i.marca} ${i.modelo}${i.descripcion? ' — '+i.descripcion : ''}`,
+          `- Ítem: ${i.marca} ${i.modelo}`,
+          ...(i.descripcion? [`  Descripción: ${i.descripcion}`] : []),
           `  Cantidad: ${i.cantidad} unidad${i.cantidad===1?'':'es'}`,
         ]),
         ``,
@@ -1645,6 +1656,38 @@ function renderBackofficeCorreos(){
   `;
 }
 
+/* ---- Datos de facturación (usados en el correo de orden de compra al proveedor) ---- */
+function renderBackofficeFacturacion(){
+  return `
+    <div class="proto-banner">
+      ${ic('info',17)}
+      <div>Estos datos se insertan en la sección "Datos de Facturación" del correo de orden de compra que recibe cada proveedor, y <b>${EMPRESA.correoDTE || 'el correo DTE'}</b> recibe copia de esa notificación. Editables acá para no dejarlos fijos en el código — si la razón social o el RUT cambian, se actualizan desde esta pantalla sin tocar nada más.</div>
+    </div>
+    <div class="panel" style="max-width:640px">
+      <div class="panel-head">
+        <h3>Datos de la empresa</h3>
+        <p>Se usan en las órdenes de compra enviadas a proveedores.</p>
+      </div>
+      <div class="panel-body">
+        <div class="field"><label>Nombre de la plataforma</label><input id="empNombrePlataforma" value="${EMPRESA.nombrePlataforma}" placeholder="Ej: Kupos Autopartes"></div>
+        <div class="field-row">
+          <div class="field"><label>Razón Social</label><input id="empRazonSocial" value="${EMPRESA.razonSocial}" placeholder="Ej: PASAJEBUS SPA"></div>
+          <div class="field"><label>RUT</label><input id="empRut" value="${EMPRESA.rut}" placeholder="Ej: 76.335.837-2"></div>
+        </div>
+        <div class="field"><label>Giro</label><input id="empGiro" value="${EMPRESA.giro}" placeholder="Giro comercial"></div>
+        <div class="field"><label>Dirección</label><input id="empDireccion" value="${EMPRESA.direccion}" placeholder="Dirección de la empresa"></div>
+        <div class="field-row">
+          <div class="field"><label>Correo DTE (recibe copia de la confirmación)</label><input id="empCorreoDTE" value="${EMPRESA.correoDTE}" placeholder="contabilidad@empresa.cl"></div>
+          <div class="field"><label>Condiciones de pago</label><input id="empCondicionesPago" value="${EMPRESA.condicionesPago}" placeholder="Ej: 30 días contra factura"></div>
+        </div>
+        <div class="modal-actions" style="justify-content:flex-start;margin-top:2px">
+          <button class="btn btn-accent" id="saveEmpresa">${ic('check',14)} Guardar cambios</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 /* ---- Historial de cambios (bitácora de todo lo que se modifica en Backoffice) ---- */
 function filteredHistory(){
   let list = HISTORY.slice();
@@ -1713,6 +1756,7 @@ function renderBackofficeHistorial(){
         <option value="item" ${histFilters.entidad==='item'?'selected':''}>Catálogo</option>
         <option value="proveedor" ${histFilters.entidad==='proveedor'?'selected':''}>Proveedores</option>
         <option value="solicitud" ${histFilters.entidad==='solicitud'?'selected':''}>Solicitudes</option>
+        <option value="empresa" ${histFilters.entidad==='empresa'?'selected':''}>Datos de facturación</option>
       </select>
       <select id="histFiltroActor">
         <option value="">Todos los usuarios</option>
@@ -1849,6 +1893,7 @@ function renderBackoffice(){
       <button class="tab ${bo.tab==='proveedores'?'active':''}" data-tab="proveedores">Proveedores${PROVIDERS.length? ` (${PROVIDERS.length})`:''}</button>
       <button class="tab ${bo.tab==='solicitudes'?'active':''}" data-tab="solicitudes">Solicitudes${(()=>{ const n=REQUESTS.filter(r=>r.estado==='pendiente'||r.estado==='esperando-aprobacion').length; return n? ` (${n})` : ''; })()}</button>
       <button class="tab ${bo.tab==='correos'?'active':''}" data-tab="correos">Correos${EMAILS.length? ` (${EMAILS.length})`:''}</button>
+      <button class="tab ${bo.tab==='facturacion'?'active':''}" data-tab="facturacion">Datos de facturación</button>
       <button class="tab ${bo.tab==='historial'?'active':''}" data-tab="historial">Historial de cambios${HISTORY.length? ` (${HISTORY.length})`:''}</button>
     </div>
     <div id="boBody">${
@@ -1856,6 +1901,7 @@ function renderBackoffice(){
       : bo.tab==='proveedores' ? renderBackofficeProveedores()
       : bo.tab==='solicitudes' ? renderBackofficeSolicitudes()
       : bo.tab==='correos' ? renderBackofficeCorreos()
+      : bo.tab==='facturacion' ? renderBackofficeFacturacion()
       : renderBackofficeHistorial()
     }</div>
   `;
@@ -1998,6 +2044,24 @@ function wireBackoffice(){
       approveSolicitud(b.getAttribute('data-approve-email'));
       renderContentOnly();
     }));
+  } else if(bo.tab==='facturacion'){
+    const save = document.getElementById('saveEmpresa');
+    if(save) save.addEventListener('click', ()=>{
+      const prev = {...EMPRESA};
+      EMPRESA = {
+        nombrePlataforma: document.getElementById('empNombrePlataforma').value.trim(),
+        razonSocial: document.getElementById('empRazonSocial').value.trim(),
+        rut: document.getElementById('empRut').value.trim(),
+        giro: document.getElementById('empGiro').value.trim(),
+        direccion: document.getElementById('empDireccion').value.trim(),
+        correoDTE: document.getElementById('empCorreoDTE').value.trim(),
+        condicionesPago: document.getElementById('empCondicionesPago').value.trim(),
+      };
+      saveEmpresa();
+      const cambios = diffFields(prev, EMPRESA, EMPRESA_DIFF_FIELDS);
+      logHistory({ entidad:'empresa', entidadId:'empresa', accion:'editar', resumen:'Editó los datos de facturación', cambios });
+      renderContentOnly();
+    });
   } else {
     const fEntidad = document.getElementById('histFiltroEntidad');
     if(fEntidad) fEntidad.addEventListener('change', (e)=>{ histFilters.entidad = e.target.value; renderContentOnly(); });
