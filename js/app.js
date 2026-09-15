@@ -159,6 +159,88 @@ function seedEmpresa(){
   };
 }
 
+/* Plantillas de los correos de solicitud (comprador) y orden de compra (proveedor).
+   {{variable}} se reemplaza en tiempo de envío — ver EMAIL_VARS más abajo para la lista
+   de variables disponibles en cada plantilla. Editable desde Backoffice → Plantillas de
+   correo, mismo patrón que EMPRESA: no hardcodeado, persistido en localStorage. */
+function seedTemplates(){
+  return {
+    compradorAsunto: 'Aprueba tu compra {{folio}} — {{plataforma}}',
+    compradorItemLinea: '- Producto: {{cantidad}} × {{marca}} {{modelo}}{{sku_sufijo}} — {{subtotal}}',
+    compradorCuerpo:
+`Hola, {{nombre}}:
+Hemos recibido tu solicitud de compra en nuestro portal. Para poder coordinar el despacho con el proveedor, necesitamos tu aprobación final de los siguientes detalles:
+
+🛒 Resumen de la Compra (N° {{folio}})
+{{items}}
+- Monto Total: {{total}}
+- Forma de pago: El monto total se descontará de tu próxima recaudación.
+
+🚚 Datos de Despacho
+- Dirección: {{direccion}}
+- Responsable de recepción: {{responsable}}{{comentario_linea}}
+
+✅ Confirma tu pedido
+Para autorizar esta compra y enviar la orden al proveedor, por favor haz clic en el siguiente enlace:
+👉 Aprobar Compra {{folio}}: {{link}}
+(enlace de ejemplo — en este prototipo se simula con el botón "Simular aprobación")
+
+Si no reconoces esta compra o necesitas modificarla, por favor contáctanos antes de aprobar.
+
+Saludos cordiales,
+El equipo de {{plataforma}}`,
+    proveedorAsunto: 'Orden de Compra {{folio}} — {{plataforma}}',
+    proveedorItemLinea: '- Ítem: {{marca}} {{modelo}}\n{{sku_linea}}{{descripcion_linea}}  Cantidad: {{cantidad}} unidad{{plural}}',
+    proveedorCuerpo:
+`Estimado equipo de {{proveedor}},
+Le notificamos que se ha confirmado un nuevo pedido a través de nuestro portal. Este correo constituye la Orden de Compra oficial para los productos detallados a continuación. Por favor, proceda con la preparación y el despacho.
+
+📄 Datos de la Orden de Compra
+- N° de Orden de Compra: {{folio}}
+- Fecha de emisión: {{fecha_emision}}
+- Condiciones de pago: {{condiciones_pago}}
+
+📦 Detalle de los Productos
+{{items}}
+
+🚚 Información de Despacho
+- Cliente / Empresa: {{cliente}}
+- Dirección de Entrega: {{direccion}}
+- Responsable de Recepción: {{responsable}}
+- Teléfono de Contacto: {{telefono}}
+- Correo Electrónico: {{correo}}
+
+🏢 Datos de Facturación
+- Razón Social: {{razon_social}}
+- RUT: {{rut}}
+- Giro: {{giro}}
+- Dirección: {{direccion_empresa}}
+- Correo DTE: {{correo_dte}}
+
+⚙️ Instrucciones Adicionales
+Por favor, confirme la recepción de este pedido respondiendo a este correo (con copia a {{correo_dte}}) e indíquenos la fecha estimada de entrega. Una vez despachado, le solicitamos enviar el comprobante de entrega y la factura electrónica a nuestro correo de DTE.
+
+Quedamos a su disposición ante cualquier duda o comentario.
+
+Atentamente,
+Equipo {{plataforma}}`,
+  };
+}
+/* Variables disponibles por plantilla, mostradas como referencia en Backoffice → Plantillas
+   de correo. Los sufijos _linea/_sufijo ya vienen formateados (con su propio salto de línea
+   o prefijo) para que la plantilla no necesite lógica condicional, solo texto. */
+const EMAIL_VARS = {
+  compradorAsunto: ['folio', 'plataforma'],
+  compradorItemLinea: ['cantidad', 'marca', 'modelo', 'sku_sufijo', 'subtotal'],
+  compradorCuerpo: ['nombre', 'folio', 'items', 'total', 'direccion', 'responsable', 'comentario_linea', 'link', 'plataforma'],
+  proveedorAsunto: ['folio', 'plataforma'],
+  proveedorItemLinea: ['marca', 'modelo', 'sku_linea', 'descripcion_linea', 'cantidad', 'plural'],
+  proveedorCuerpo: ['proveedor', 'folio', 'fecha_emision', 'condiciones_pago', 'items', 'cliente', 'direccion', 'responsable', 'telefono', 'correo', 'razon_social', 'rut', 'giro', 'direccion_empresa', 'correo_dte', 'plataforma'],
+};
+function renderTemplate(tpl, vars){
+  return tpl.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k]!=null ? vars[k] : '');
+}
+
 let PRODUCTS = LS.get('ap_products', null) || seedProducts();
 let PROVIDERS = LS.get('ap_providers', null) || seedProviders();
 let CART = LS.get('ap_cart', []);
@@ -166,6 +248,7 @@ let REQUESTS = LS.get('ap_requests', []);
 let EMAILS = LS.get('ap_emails', []);
 let HISTORY = LS.get('ap_history', []);
 let EMPRESA = LS.get('ap_empresa', null) || seedEmpresa();
+let TEMPLATES = LS.get('ap_templates', null) || seedTemplates();
 function saveProducts(){ LS.set('ap_products', PRODUCTS); }
 function saveProviders(){ LS.set('ap_providers', PROVIDERS); }
 function saveCart(){ LS.set('ap_cart', CART); }
@@ -173,6 +256,7 @@ function saveRequests(){ LS.set('ap_requests', REQUESTS); }
 function saveEmails(){ LS.set('ap_emails', EMAILS); }
 function saveHistory(){ LS.set('ap_history', HISTORY); }
 function saveEmpresa(){ LS.set('ap_empresa', EMPRESA); }
+function saveTemplates(){ LS.set('ap_templates', TEMPLATES); }
 
 /* ================= Historial de cambios (bitácora de Backoffice) ================= */
 /* Quién realiza la acción: en el mockup no hay login real, así que se simula con un
@@ -181,7 +265,7 @@ function saveEmpresa(){ LS.set('ap_empresa', EMPRESA); }
 let backofficeActor = LS.get('ap_actor', '');
 function saveActor(){ LS.set('ap_actor', backofficeActor); }
 
-const HIST_ENTIDAD_LABELS = { item:'Catálogo', proveedor:'Proveedor', solicitud:'Solicitud', empresa:'Datos de facturación' };
+const HIST_ENTIDAD_LABELS = { item:'Catálogo', proveedor:'Proveedor', solicitud:'Solicitud', empresa:'Datos de facturación', plantillas:'Plantillas de correo' };
 const HIST_ACCION_LABELS = {
   crear:'Creó', editar:'Editó', publicar:'Publicó', rechazar:'Rechazó', eliminar:'Eliminó',
   confirmar:'Confirmó', 'aprobacion-cliente':'Aprobación de cliente (simulada)',
@@ -227,6 +311,10 @@ const PROVIDER_DIFF_FIELDS = [ ['nombre','Nombre'], ['email','Correo'], ['telefo
 const EMPRESA_DIFF_FIELDS = [
   ['nombrePlataforma','Nombre de la plataforma'], ['razonSocial','Razón Social'], ['rut','RUT'],
   ['giro','Giro'], ['direccion','Dirección'], ['correoDTE','Correo DTE'], ['condicionesPago','Condiciones de pago'],
+];
+const TEMPLATES_DIFF_FIELDS = [
+  ['compradorAsunto','Comprador · Asunto'], ['compradorItemLinea','Comprador · Línea de producto'], ['compradorCuerpo','Comprador · Cuerpo'],
+  ['proveedorAsunto','Proveedor · Asunto'], ['proveedorItemLinea','Proveedor · Línea de producto'], ['proveedorCuerpo','Proveedor · Cuerpo'],
 ];
 
 /* ================= App state ================= */
@@ -653,33 +741,21 @@ function submitSolicitud(){
 
   // Único correo que se envía al confirmar: la aprobación al cliente. El proveedor no
   // recibe nada todavía.
+  const itemLineas = items.map(i => renderTemplate(TEMPLATES.compradorItemLinea, {
+    cantidad: i.cantidad, marca: i.marca, modelo: i.modelo,
+    sku_sufijo: i.sku? ` (SKU: ${i.sku})` : '',
+    subtotal: money(i.precio*i.cantidad),
+  })).join('\n');
   queueEmail({
     to: correo, tipo:'cliente', accion:'aprobar', folio,
-    asunto: `Aprueba tu compra ${folio} — ${EMPRESA.nombrePlataforma}`,
-    cuerpo: [
-      `Hola, ${nombre}:`,
-      `Hemos recibido tu solicitud de compra en nuestro portal. Para poder coordinar el despacho con el proveedor, necesitamos tu aprobación final de los siguientes detalles:`,
-      ``,
-      `🛒 Resumen de la Compra (N° ${folio})`,
-      ...items.map(i=>`- Producto: ${i.cantidad} × ${i.marca} ${i.modelo}${i.sku? ` (SKU: ${i.sku})` : ''} — ${money(i.precio*i.cantidad)}`),
-      `- Monto Total: ${money(req.total)}`,
-      `- Forma de pago: El monto total se descontará de tu próxima recaudación.`,
-      ``,
-      `🚚 Datos de Despacho`,
-      `- Dirección: ${direccionCompleta}`,
-      `- Responsable de recepción: ${responsable}`,
-      ...(cliente.comentario? [`- Comentario: ${cliente.comentario}`] : []),
-      ``,
-      `✅ Confirma tu pedido`,
-      `Para autorizar esta compra y enviar la orden al proveedor, por favor haz clic en el siguiente enlace:`,
-      `👉 Aprobar Compra ${folio}: https://autopartes.kupos.cl/aprobar/${folio}`,
-      `(enlace de ejemplo — en este prototipo se simula con el botón "Simular aprobación")`,
-      ``,
-      `Si no reconoces esta compra o necesitas modificarla, por favor contáctanos antes de aprobar.`,
-      ``,
-      `Saludos cordiales,`,
-      `El equipo de ${EMPRESA.nombrePlataforma}`,
-    ].join('\n'),
+    asunto: renderTemplate(TEMPLATES.compradorAsunto, {folio, plataforma: EMPRESA.nombrePlataforma}),
+    cuerpo: renderTemplate(TEMPLATES.compradorCuerpo, {
+      nombre, folio, items: itemLineas, total: money(req.total),
+      direccion: direccionCompleta, responsable,
+      comentario_linea: cliente.comentario? `\n- Comentario: ${cliente.comentario}` : '',
+      link: `https://autopartes.kupos.cl/aprobar/${folio}`,
+      plataforma: EMPRESA.nombrePlataforma,
+    }),
   });
   saveEmails();
 
@@ -734,48 +810,25 @@ function approveSolicitud(folio){
   // y cantidad, más los datos de despacho y de facturación.
   const fechaEmision = new Date().toLocaleDateString('es-CL', {day:'2-digit', month:'2-digit', year:'numeric'});
   Object.entries(porProveedor).forEach(([email, grupo])=>{
+    const itemLineas = grupo.items.map(i => renderTemplate(TEMPLATES.proveedorItemLinea, {
+      marca: i.marca, modelo: i.modelo,
+      sku_linea: i.sku? `  SKU: ${i.sku}\n` : '',
+      descripcion_linea: i.descripcion? `  Descripción: ${i.descripcion}\n` : '',
+      cantidad: i.cantidad, plural: i.cantidad===1? '' : 'es',
+    })).join('\n');
     queueEmail({
       to: email, cc: EMPRESA.correoDTE, tipo:'proveedor', folio,
-      asunto: `Orden de Compra ${folio} — ${EMPRESA.nombrePlataforma}`,
-      cuerpo: [
-        `Estimado equipo de ${grupo.proveedor},`,
-        `Le notificamos que se ha confirmado un nuevo pedido a través de nuestro portal. Este correo constituye la Orden de Compra oficial para los productos detallados a continuación. Por favor, proceda con la preparación y el despacho.`,
-        ``,
-        `📄 Datos de la Orden de Compra`,
-        `- N° de Orden de Compra: ${folio}`,
-        `- Fecha de emisión: ${fechaEmision}`,
-        `- Condiciones de pago: ${EMPRESA.condicionesPago}`,
-        ``,
-        `📦 Detalle de los Productos`,
-        ...grupo.items.flatMap(i=>[
-          `- Ítem: ${i.marca} ${i.modelo}`,
-          ...(i.sku? [`  SKU: ${i.sku}`] : []),
-          ...(i.descripcion? [`  Descripción: ${i.descripcion}`] : []),
-          `  Cantidad: ${i.cantidad} unidad${i.cantidad===1?'':'es'}`,
-        ]),
-        ``,
-        `🚚 Información de Despacho`,
-        `- Cliente / Empresa: ${req.cliente.nombre}${req.cliente.empresa? ' ('+req.cliente.empresa+')' : ''}`,
-        `- Dirección de Entrega: ${direccionCompleta}`,
-        `- Responsable de Recepción: ${responsable}`,
-        `- Teléfono de Contacto: ${req.cliente.telefono}`,
-        `- Correo Electrónico: ${req.cliente.correo}`,
-        ``,
-        `🏢 Datos de Facturación`,
-        `- Razón Social: ${EMPRESA.razonSocial}`,
-        `- RUT: ${EMPRESA.rut}`,
-        `- Giro: ${EMPRESA.giro}`,
-        `- Dirección: ${EMPRESA.direccion}`,
-        `- Correo DTE: ${EMPRESA.correoDTE}`,
-        ``,
-        `⚙️ Instrucciones Adicionales`,
-        `Por favor, confirme la recepción de este pedido respondiendo a este correo (con copia a ${EMPRESA.correoDTE}) e indíquenos la fecha estimada de entrega. Una vez despachado, le solicitamos enviar el comprobante de entrega y la factura electrónica a nuestro correo de DTE.`,
-        ``,
-        `Quedamos a su disposición ante cualquier duda o comentario.`,
-        ``,
-        `Atentamente,`,
-        `Equipo ${EMPRESA.nombrePlataforma}`,
-      ].join('\n'),
+      asunto: renderTemplate(TEMPLATES.proveedorAsunto, {folio, plataforma: EMPRESA.nombrePlataforma}),
+      cuerpo: renderTemplate(TEMPLATES.proveedorCuerpo, {
+        proveedor: grupo.proveedor, folio, fecha_emision: fechaEmision, condiciones_pago: EMPRESA.condicionesPago,
+        items: itemLineas,
+        cliente: req.cliente.nombre + (req.cliente.empresa? ` (${req.cliente.empresa})` : ''),
+        direccion: direccionCompleta, responsable,
+        telefono: req.cliente.telefono, correo: req.cliente.correo,
+        razon_social: EMPRESA.razonSocial, rut: EMPRESA.rut, giro: EMPRESA.giro,
+        direccion_empresa: EMPRESA.direccion, correo_dte: EMPRESA.correoDTE,
+        plataforma: EMPRESA.nombrePlataforma,
+      }),
     });
   });
   saveEmails();
@@ -1695,6 +1748,43 @@ function renderBackofficeFacturacion(){
   `;
 }
 
+/* ---- Plantillas de correo (texto + variables {{var}} de comprador y proveedor) ---- */
+function templateField(id, label, value, varsKey, rows){
+  return `
+    <div class="field">
+      <label>${label}</label>
+      <textarea id="${id}" rows="${rows}" style="font-family:var(--font-mono);font-size:12.5px" spellcheck="false">${value}</textarea>
+      <p class="hint" style="margin-top:2px">Variables: ${EMAIL_VARS[varsKey].map(v=>`<code>{{${v}}}</code>`).join(' ')}</p>
+    </div>`;
+}
+function renderBackofficeTemplates(){
+  return `
+    <div class="proto-banner">
+      ${ic('info',17)}
+      <div>Texto de los correos de solicitud (comprador) y orden de compra (proveedor). Cada <code>{{variable}}</code> se reemplaza al enviar el correo — la línea de producto se repite una vez por ítem y se inserta donde vaya <code>{{items}}</code> en el cuerpo.</div>
+    </div>
+    <div class="panel" style="max-width:720px;margin-bottom:16px">
+      <div class="panel-head"><h3>Comprador · Correo de aprobación</h3></div>
+      <div class="panel-body">
+        ${templateField('tplCompradorAsunto', 'Asunto', TEMPLATES.compradorAsunto, 'compradorAsunto', 1)}
+        ${templateField('tplCompradorItemLinea', 'Línea de producto (se repite por ítem)', TEMPLATES.compradorItemLinea, 'compradorItemLinea', 2)}
+        ${templateField('tplCompradorCuerpo', 'Cuerpo del correo', TEMPLATES.compradorCuerpo, 'compradorCuerpo', 16)}
+      </div>
+    </div>
+    <div class="panel" style="max-width:720px">
+      <div class="panel-head"><h3>Proveedor · Orden de compra</h3></div>
+      <div class="panel-body">
+        ${templateField('tplProveedorAsunto', 'Asunto', TEMPLATES.proveedorAsunto, 'proveedorAsunto', 1)}
+        ${templateField('tplProveedorItemLinea', 'Línea de producto (se repite por ítem)', TEMPLATES.proveedorItemLinea, 'proveedorItemLinea', 4)}
+        ${templateField('tplProveedorCuerpo', 'Cuerpo del correo', TEMPLATES.proveedorCuerpo, 'proveedorCuerpo', 24)}
+        <div class="modal-actions" style="justify-content:flex-start;margin-top:2px">
+          <button class="btn btn-accent" id="saveTemplates">${ic('check',14)} Guardar cambios</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 /* ---- Historial de cambios (bitácora de todo lo que se modifica en Backoffice) ---- */
 function filteredHistory(){
   let list = HISTORY.slice();
@@ -1764,6 +1854,7 @@ function renderBackofficeHistorial(){
         <option value="proveedor" ${histFilters.entidad==='proveedor'?'selected':''}>Proveedores</option>
         <option value="solicitud" ${histFilters.entidad==='solicitud'?'selected':''}>Solicitudes</option>
         <option value="empresa" ${histFilters.entidad==='empresa'?'selected':''}>Datos de facturación</option>
+        <option value="plantillas" ${histFilters.entidad==='plantillas'?'selected':''}>Plantillas de correo</option>
       </select>
       <select id="histFiltroActor">
         <option value="">Todos los usuarios</option>
@@ -1901,6 +1992,7 @@ function renderBackoffice(){
       <button class="tab ${bo.tab==='solicitudes'?'active':''}" data-tab="solicitudes">Solicitudes${(()=>{ const n=REQUESTS.filter(r=>r.estado==='pendiente'||r.estado==='esperando-aprobacion').length; return n? ` (${n})` : ''; })()}</button>
       <button class="tab ${bo.tab==='correos'?'active':''}" data-tab="correos">Correos${EMAILS.length? ` (${EMAILS.length})`:''}</button>
       <button class="tab ${bo.tab==='facturacion'?'active':''}" data-tab="facturacion">Datos de facturación</button>
+      <button class="tab ${bo.tab==='plantillas'?'active':''}" data-tab="plantillas">Plantillas de correo</button>
       <button class="tab ${bo.tab==='historial'?'active':''}" data-tab="historial">Historial de cambios${HISTORY.length? ` (${HISTORY.length})`:''}</button>
     </div>
     <div id="boBody">${
@@ -1909,6 +2001,7 @@ function renderBackoffice(){
       : bo.tab==='solicitudes' ? renderBackofficeSolicitudes()
       : bo.tab==='correos' ? renderBackofficeCorreos()
       : bo.tab==='facturacion' ? renderBackofficeFacturacion()
+      : bo.tab==='plantillas' ? renderBackofficeTemplates()
       : renderBackofficeHistorial()
     }</div>
   `;
@@ -2067,6 +2160,23 @@ function wireBackoffice(){
       saveEmpresa();
       const cambios = diffFields(prev, EMPRESA, EMPRESA_DIFF_FIELDS);
       logHistory({ entidad:'empresa', entidadId:'empresa', accion:'editar', resumen:'Editó los datos de facturación', cambios });
+      renderContentOnly();
+    });
+  } else if(bo.tab==='plantillas'){
+    const save = document.getElementById('saveTemplates');
+    if(save) save.addEventListener('click', ()=>{
+      const prev = {...TEMPLATES};
+      TEMPLATES = {
+        compradorAsunto: document.getElementById('tplCompradorAsunto').value,
+        compradorItemLinea: document.getElementById('tplCompradorItemLinea').value,
+        compradorCuerpo: document.getElementById('tplCompradorCuerpo').value,
+        proveedorAsunto: document.getElementById('tplProveedorAsunto').value,
+        proveedorItemLinea: document.getElementById('tplProveedorItemLinea').value,
+        proveedorCuerpo: document.getElementById('tplProveedorCuerpo').value,
+      };
+      saveTemplates();
+      const cambios = diffFields(prev, TEMPLATES, TEMPLATES_DIFF_FIELDS);
+      logHistory({ entidad:'plantillas', entidadId:'plantillas', accion:'editar', resumen:'Editó las plantillas de correo', cambios });
       renderContentOnly();
     });
   } else {
